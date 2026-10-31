@@ -112,3 +112,52 @@ fn babel_process_run(program: String, argv: BabelData) -> BabelData {
     })();
     match run { Ok(v) => babel_result(true,v,""), Err(e) => babel_result(false,BabelData::Null,&e) }
 }
+
+ 
+// Change only the calling process working directory, never launch a subshell.
+fn babel_change_directory(path: String) -> BabelData {
+    if !babel_permission_allowed("read") {
+        return babel_result(false, BabelData::Null, "Babel capability denied: read");
+    }
+    match std::env::set_current_dir(&path) {
+        Ok(()) => babel_result(true, BabelData::Null, ""),
+        Err(e) => babel_result(false, BabelData::Null, &e.to_string()),
+    }
+}
+
+// Foreground command execution with inherited terminal streams.
+// Process-group ownership / SIGINT isolation remain future shell runtime work.
+fn babel_process_inherit(program: String, argv: BabelData) -> BabelData {
+    if !babel_permission_allowed("process") {
+        return babel_result(false, BabelData::Null, "Babel capability denied: process");
+    }
+    let BabelData::List(values) = argv else {
+        return babel_result(false, BabelData::Null, "Process arguments must be a Data list");
+    };
+    if program.is_empty() || program.len() > 4096 || program.contains('\0') || values.len() > 128 {
+        return babel_result(false, BabelData::Null, "Invalid program or too many arguments");
+    }
+    let mut args = Vec::new();
+    for item in values {
+        let BabelData::Text(s) = item else {
+            return babel_result(false, BabelData::Null, "Process arguments must all be text");
+        };
+        if s.len() > 32768 || s.contains('\0') {
+            return babel_result(false, BabelData::Null, "Invalid process argument");
+        }
+        args.push(s);
+    }
+    match std::process::Command::new(program).args(args)
+        .stdin(std::process::Stdio::inherit())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .status()
+    {
+        Ok(status) => {
+            let mut value = std::collections::BTreeMap::new();
+            value.insert("code".into(), BabelData::Number(status.code().unwrap_or(128).to_string()));
+            babel_result(true, BabelData::Object(value), "")
+        },
+        Err(e) => babel_result(false, BabelData::Null, &e.to_string()),
+    }
+}

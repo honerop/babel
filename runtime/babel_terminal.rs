@@ -19,3 +19,10 @@ fn babel_readline(_: ()) -> BabelData {
         Err(e) => babel_result(false, BabelData::Null, &e.to_string()),
     }
 }
+
+// Prompt without a trailing newline; flush before blocking on readline.
+fn babel_termwrite(message: String) {
+    use std::io::Write;
+    print!("{message}");
+    std::io::stdout().flush().expect("terminal output flush failed");
+}
