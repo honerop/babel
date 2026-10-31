@@ -177,9 +177,9 @@ fn builtin_arity(name: &str) -> Option<usize> {
         "+"|"-"|"*"|"/"|"%"|"=="|"!="|"<"|"<="|">"|">="|"and"|"or"|"min"|"max"|"pow"|"concat"|"contains"|"starts"|"ends"|"before"|"after" => 2,
         "if"|"replace"|"clamp" => 3,
         "ffi2" => 4,
-        "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"wavwrite"|"svgwrite"|"gltfwrite"|"tcprequest"|"httpserveonce"|"ffi0"|"tuple2"|"pathjoin"|"processrun"|"split"|"strjoin"|"listtake"|"listdrop"|"listappend"|"listzip" => 2,
+        "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"wavwrite"|"svgwrite"|"gltfwrite"|"tcprequest"|"httpserveonce"|"ffi0"|"tuple2"|"pathjoin"|"processrun"|"processinherit"|"split"|"strjoin"|"listtake"|"listdrop"|"listappend"|"listzip" => 2,
         "chat"|"put"|"fold"|"iterate"|"tuple3"|"sqlquery"|"sqlexec"|"listfold"|"httprequest"|"mapset"|"mapat"|"ffi1" => 3,
-        "not"|"neg"|"abs"|"assert"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"argv"|"readline"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues"|"tomlparse"|"tomlwrite"|"tuplefst"|"tuplesnd"|"tupleswap"|"tuple3fst"|"tuple3snd"|"tuple3third"|"fslist"|"fsmkdir"|"fsremove"|"workingdir"|"lines"|"listreverse"|"listflatten"|"sortint"|"sortstr"|"listhead"|"listlast"|"listenumerate" => 1,
+        "not"|"neg"|"abs"|"assert"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"argv"|"readline"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues"|"tomlparse"|"tomlwrite"|"tuplefst"|"tuplesnd"|"tupleswap"|"tuple3fst"|"tuple3snd"|"tuple3third"|"fslist"|"fsmkdir"|"fsremove"|"workingdir"|"changedir"|"termwrite"|"lines"|"listreverse"|"listflatten"|"sortint"|"sortstr"|"listhead"|"listlast"|"listenumerate" => 1,
         _ => return None,
     })
 }
@@ -528,7 +528,7 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                     types.unify(actual[0].clone(),Ty::List(Box::new(elem.clone())),line)?;
                     Ty::List(Box::new(elem))
                 },
-                "fslist"|"fsmkdir"|"fsremove" => {
+                "fslist"|"fsmkdir"|"fsremove"|"changedir" => {
                     types.unify(actual[0].clone(), Ty::Str, line)?;
                     Ty::Data
                 },
@@ -537,7 +537,7 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                     for arg in actual { types.unify(arg, Ty::Str, line)?; }
                     Ty::Str
                 },
-                "processrun" => {
+                "processrun"|"processinherit" => {
                     types.unify(actual[0].clone(), Ty::Str, line)?;
                     types.unify(actual[1].clone(), Ty::Data, line)?;
                     Ty::Data
@@ -666,6 +666,7 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "gui"|"browser"|"chat" => { for a in actual { types.unify(a, Ty::Str, line)?; } Ty::Str },
                 "input" => { types.unify(actual[0].clone(), Ty::Unit, line)?; string },
                 "argv"|"readline" => { types.unify(actual[0].clone(), Ty::Unit, line)?; Ty::Data },
+                "termwrite" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Unit },
                 "num" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Int },
                 "isnum" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Bool },
                 "str" => string,
@@ -839,9 +840,11 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "fslist" => format!("babel_fs_list({})",a[0]),
                 "fsmkdir" => format!("babel_fs_mkdir({})",a[0]),
                 "fsremove" => format!("babel_fs_remove({})",a[0]),
+                "changedir" => format!("babel_change_directory({})",a[0]),
                 "workingdir" => format!("babel_working_directory({})",a[0]),
                 "pathjoin" => format!("babel_path_join({}, {})",a[0],a[1]),
                 "processrun" => format!("babel_process_run({}, {})",a[0],a[1]),
+                "processinherit" => format!("babel_process_inherit({}, {})",a[0],a[1]),
                 "tuple2" => format!("({}, {})",a[0],a[1]),
                 "tuple3" => format!("({}, {}, {})",a[0],a[1],a[2]),
                 "tuplefst" => format!("({}).0",a[0]),
@@ -952,6 +955,7 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "input" => format!("babel_input({})", a[0]),
                 "argv" => format!("babel_argv({})", a[0]),
                 "readline" => format!("babel_readline({})", a[0]),
+                "termwrite" => format!("babel_termwrite({})", a[0]),
                 "abs" => format!("({}).checked_abs().expect(\"integer overflow\")", a[0]),
                 "neg" => format!("({}).checked_neg().expect(\"integer overflow\")", a[0]),
                 "min" => format!("std::cmp::min({}, {})", a[0], a[1]),
@@ -1118,11 +1122,11 @@ fn babel_input(_: ()) -> String {
     out.push_str("}\n");
     let uses_data = out.contains("babel_chat(") || out.contains("babel_browser(") || out.contains("BabelData") || out.contains("BabelCell") || out.contains("BabelTask") || out.contains("babel_data_") || out.contains("babel_json(") || out.contains("babel_tryjson(");
     if uses_data { out.push_str(include_str!("../runtime/babel_data.rs")); }
-    if out.contains("babel_argv(") || out.contains("babel_readline(") {
+    if out.contains("babel_argv(") || out.contains("babel_readline(") || out.contains("babel_termwrite(") {
         out.push_str(include_str!("../runtime/babel_terminal.rs"));
     }
     let uses_effects = out.contains("babel_fs_list(") || out.contains("babel_fs_mkdir(")
-        || out.contains("babel_fs_remove(") || out.contains("babel_process_run(")
+        || out.contains("babel_fs_remove(") || out.contains("babel_change_directory(") || out.contains("babel_process_run(") || out.contains("babel_process_inherit(")
         || out.contains("babel_working_directory(") || out.contains("babel_ffi0(") || out.contains("babel_ffi1(") || out.contains("babel_ffi2(")
         || out.contains("babel_tcp_request(") || out.contains("babel_http_serveonce(") || out.contains("babel_wavwrite(") || out.contains("babel_svgwrite(")
         || out.contains("babel_gltfwrite(") || out.contains("babel_sqlquery(") || out.contains("babel_sqlexec(") || out.contains("babel_check_permission(") || out.contains("babel_fs_")
@@ -1161,8 +1165,8 @@ fn babel_input(_: ()) -> String {
         out.push_str(include_str!("../runtime/babel_toml.rs"));
     }
     if out.contains("babel_fs_list(") || out.contains("babel_fs_mkdir(")
-        || out.contains("babel_fs_remove(") || out.contains("babel_path_join(")
-        || out.contains("babel_working_directory(") || out.contains("babel_process_run(") {
+        || out.contains("babel_fs_remove(") || out.contains("babel_change_directory(") || out.contains("babel_path_join(")
+        || out.contains("babel_working_directory(") || out.contains("babel_process_run(") || out.contains("babel_process_inherit(") {
         out.push_str(include_str!("../runtime/babel_fs_process.rs"));
     }
     let uses_gui = out.contains("babel_gui(") || out.contains("babel_guiupdate(") || out.contains("babel_guitick(");

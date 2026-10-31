@@ -1,0 +1,31 @@
+# Plica 0.1: shell implementation written entirely in Babel.
+# Text command parsing is intentionally minimal in this preview.
+
+tokens text collected = if == trim text "" collected tokens skip text push collected boxstr word text
+arguments text = tokens text array _
+path text = if == trim text "" "." trim text
+report result = if asbool field result "ok" _ print concat "plica: " astext field result "error"
+showcwd result = if asbool field result "ok" print astext field result "value" report result
+showfiles result = if asbool field result "ok" print encode map "fileentry" field result "value" report result
+fileentry name = put record _ "name" name
+showcapture result = if asbool field result "ok" print encode field result "value" report result
+showhelp _ = print "Plica 0.1 (Babel shell)\n  help            show commands\n  pwd             working directory\n  cd PATH         change directory (empty PATH uses HOME)\n  files [PATH]    structured JSON listing\n  capture CMD...  execute and return {code,stdout,stderr} as JSON\n  ask PROMPT      ask the OpenCode model through Babel\n  exit            leave Plica\n  COMMAND ARGS    execute a native terminal command\n\nNot yet supported: pipes, quotes, globbing, redirection, jobs, or scripts."
+showpwd _ = showcwd workingdir _
+changedirectory text = report changedir if == trim text "" environ "HOME" trim text
+listfiles text = showfiles fslist path text
+captured text = showcapture processrun word text arguments skip text
+askmodel text = print chat "opencode" "" text
+native text = report processinherit word text arguments skip text
+dispatch text = if == word text "help" showhelp _ dispatch1 text
+dispatch1 text = if == word text "pwd" showpwd _ dispatch2 text
+dispatch2 text = if == word text "cd" changedirectory skip text dispatch3 text
+dispatch3 text = if == word text "files" listfiles skip text dispatch4 text
+dispatch4 text = if == word text "capture" captured skip text dispatch5 text
+dispatch5 text = if == word text "ask" askmodel skip text native text
+continue text = loop dispatch text
+decide text = if == trim text "exit" _ if == trim text ":quit" _ continue text
+received result = if asbool field result "ok" decide astext field result "value" _
+prompt _ = termwrite "plica> "
+loop _ = received readline prompt _
+print "Plica 0.1 | Babel-native developer preview | help for commands"
+loop _

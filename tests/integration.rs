@@ -1088,3 +1088,26 @@ end of input
 "#);
     fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+#[cfg(unix)]
+fn shell_primitives_are_available_and_recoverable() {
+    let source = r#"termwrite "prompt> "
+print astext field workingdir _ "value"
+print asbool field changedir "/definitely/not/a/valid/directory" "ok"
+out = processinherit "true" array _
+print asbool field out "ok"
+print asint field field out "value" "code"
+"#;
+    let result = execute(source);
+    assert!(result.starts_with("prompt> /"));
+    assert!(result.ends_with("false\ntrue\n0\n"));
+}
+
+#[test]
+#[cfg(unix)]
+fn plica_preview_compiles_and_exits_cleanly_on_eof() {
+    let output = execute(include_str!("fixtures/plica_preview.babel"));
+    assert!(output.starts_with("Plica 0.1 | Babel-native developer preview"));
+    assert!(output.contains("plica> "));
+}
