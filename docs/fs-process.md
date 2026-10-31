@@ -51,3 +51,13 @@ recoverable error handling.
 The native Rust backend implements these operations; the bootstrap C and
 experimental AIR/LLVM subsets have not been upgraded. Generated-program
 regression tests exercise real files, directories, processes and type errors.
+
+## Foreground terminal commands (experimental)
+
+- `termwrite TEXT` prints without adding a newline and flushes stdout, useful for prompts.
+- `changedir PATH` changes the current Babel process directory, returning a recoverable Data result.
+- `processinherit PROGRAM ARGS` launches an executable with stdin, stdout and stderr attached to the calling terminal. `ARGS` is a Data list of strings. The return record contains `ok`, `value.code`, and `error`. Unlike `processrun`, this is not an output-capture API.
+
+These operations are designed for Babel-native shells such as Plica. The child uses the same terminal foreground process group. Proper separate process groups, signal handling and job control are not yet implemented. This is not yet a complete POSIX shell execution environment.
+
+Both operations touching the filesystem or spawning programs respect Babel's optional builtin permission flags, which are *not* an operating-system sandbox.
