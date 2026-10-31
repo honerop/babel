@@ -1103,3 +1103,11 @@ print asint field field out "value" "code"
     assert!(result.starts_with("prompt> /"));
     assert!(result.ends_with("false\ntrue\n0\n"));
 }
+
+#[test]
+#[cfg(unix)]
+fn plica_preview_compiles_and_exits_cleanly_on_eof() {
+    let output = execute(include_str!("../examples/plica_preview.babel"));
+    assert!(output.starts_with("Plica 0.1 | Babel-native developer preview"));
+    assert!(output.contains("plica> "));
+}
