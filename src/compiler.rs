@@ -185,7 +185,7 @@ fn builtin_arity(name: &str) -> Option<usize> {
 }
 fn is_reserved(name: &str) -> bool { builtin_arity(name).is_some() || name == "true" || name == "false" || name == "_" }
 
-struct ExpressionParser<'a> { tokens: &'a [Token], at: usize, arities: &'a HashMap<String, usize>, line: usize }
+struct ExpressionParser<'a> { tokens: &'a [Token], at: usize, arities: &'a HashMap<String, usize>, bound: &'a HashSet<String>, line: usize }
 impl ExpressionParser<'_> {
     fn expression(&mut self) -> Result<Expr, CompileError> {
         let token = self.tokens.get(self.at).ok_or_else(|| err(self.line, "expected expression"))?.clone();
@@ -221,6 +221,10 @@ impl ExpressionParser<'_> {
                 if w == "false" { return Ok(Expr::Bool(false)); }
                 if w == "_" { return Ok(Expr::Unit); }
                 if let Ok(n) = w.parse::<i64>() { return Ok(Expr::Int(n)); }
+                // Function parameters shadow globally defined function names.
+                // Otherwise importing a module with an `arguments` or `path` parameter
+                // breaks whenever an application defines a same-named helper.
+                if self.bound.contains(&w) { return Ok(Expr::Var(w)); }
                 if let Some(arity) = self.arities.get(&w).copied().or_else(|| builtin_arity(&w)) {
                     let canonical = canonical_builtin(&w);
                     let mut arguments = Vec::with_capacity(arity);
@@ -244,8 +248,8 @@ impl ExpressionParser<'_> {
     }
 }
 
-fn parse_expr(tokens: &[Token], arities: &HashMap<String, usize>, line: usize) -> Result<Expr, CompileError> {
-    let mut parser = ExpressionParser { tokens, at: 0, arities, line };
+fn parse_expr(tokens: &[Token], arities: &HashMap<String, usize>, bound: &HashSet<String>, line: usize) -> Result<Expr, CompileError> {
+    let mut parser = ExpressionParser { tokens, at: 0, arities, bound, line };
     let expr = parser.expression()?;
     if parser.at != tokens.len() { return Err(err(line, "extra tokens after expression (check function arity or line breaks)")); }
     Ok(expr)
@@ -285,14 +289,18 @@ fn parse(source: &str) -> Result<Program, CompileError> {
         let eq_at = tokens.iter().position(|t| t == &Token::Word("=".into()));
         if let Some(eq) = eq_at {
             let name = match &tokens[0] { Token::Word(w) => w.clone(), _ => unreachable!() };
-            let expr = parse_expr(&tokens[eq + 1..], &arities, line)?;
+            let bound: HashSet<String> = tokens[1..eq].iter().filter_map(|t| match t {
+                Token::Word(w) if w != "_" => Some(w.clone()),
+                _ => None,
+            }).collect();
+            let expr = parse_expr(&tokens[eq + 1..], &arities, &bound, line)?;
             if eq == 1 { items.push(Item::Value { name, expr, line }); }
             else {
                 let args = tokens[1..eq].iter().map(|x| match x { Token::Word(w) => w.clone(), _ => unreachable!() }).collect();
                 functions.push(Function { name, args, expr, line });
             }
         } else {
-            let expr = parse_expr(&tokens, &arities, line)?;
+            let expr = parse_expr(&tokens, &arities, &HashSet::new(), line)?;
             items.push(Item::Statement { expr, line });
         }
     }

@@ -144,7 +144,11 @@ pub fn resolve_source(path: &Path, source: &str) -> Result<String, String> {
     if let Some(parent) = path.parent() {
         roots.push(parent.join("segments"));
     }
-    roots.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("segments"));
+    // Cargo defines this during ordinary builds; plain rustc users rely on the
+    // embedded module catalog when no manifest directory is available.
+    if let Some(root) = option_env!("CARGO_MANIFEST_DIR") {
+        roots.push(PathBuf::from(root).join("segments"));
+    }
     let mut resolver = Resolver {
         roots, emitted: HashSet::new(), visiting: vec![], output: String::new(),
     };
