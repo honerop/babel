@@ -4,7 +4,7 @@ The Rust backend accepts finite decimal/scientific literals such as `1.25`, `-0.
 
 ```babel
 print + 1.25 2.75
-square x = * x x
+square x = * x + x 0.0
 print square 1.5
 print + intfloat 2 0.5
 ```
