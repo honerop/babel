@@ -54,6 +54,8 @@ unsafe extern "C" {
     fn gtk_progress_bar_set_text(bar: *mut c_void, text: *const c_char);
     fn gtk_progress_bar_set_show_text(bar: *mut c_void, show: i32);
     fn gtk_picture_new_for_filename(filename: *const c_char) -> *mut c_void;
+    fn gtk_picture_set_content_fit(picture: *mut c_void, fit: i32);
+    fn gtk_gesture_click_new() -> *mut c_void;
     fn gtk_separator_new(orientation: i32) -> *mut c_void;
     fn gtk_scrolled_window_new() -> *mut c_void;
     fn gtk_scrolled_window_set_child(scroll: *mut c_void, child: *mut c_void);
@@ -212,6 +214,23 @@ struct BabelGuiSelect {
     id: String,
     values: Vec<String>,
 }
+struct BabelGuiImageClick {
+    gui: *mut BabelGui,
+    id: String,
+}
+unsafe extern "C" fn babel_gui_image_destroy(data: *mut c_void, _closure: *mut c_void) {
+    drop(Box::from_raw(data as *mut BabelGuiImageClick));
+}
+unsafe extern "C" fn babel_gui_image_pressed(
+    _gesture: *mut c_void, _count: i32, x: f64, y: f64, data: *mut c_void
+) {
+    let state = &*(data as *mut BabelGuiImageClick);
+    if !x.is_finite() || !y.is_finite() || x < 0.0 || y < 0.0 { return; }
+    // Coordinates are local to the image widget, not the window.
+    // 'imageclick' uses content-fit=FILL and exact requested dimensions.
+    (*state.gui).event = Some(format!("{}:{}:{}\n", state.id, x.floor() as i32, y.floor() as i32));
+}
+
 thread_local! {
     static BABEL_GUI: Cell<*mut BabelGui> = const { Cell::new(ptr::null_mut()) };
 }
@@ -635,6 +654,30 @@ unsafe fn babel_gui_render(gui: *mut BabelGui, title: &str, spec: &str) {
                 let size = b.parse::<i32>().unwrap_or(240).clamp(32, 720);
                 let picture = gtk_picture_new_for_filename(babel_gui_c(a).as_ptr());
                 gtk_widget_set_size_request(picture, size, size);
+                babel_gui_append(*containers.last().unwrap(), picture);
+            }
+            "imageclick" => {
+                // imageclick<TAB>file<TAB>width<TAB>action<TAB>height
+                // The browser interprets the event and decides where links are.
+                // No page code or link URL is run by the widget.
+                if a.len() > 4096 || a.is_empty() || a.contains('\0')
+                    || c.is_empty() || c.len() > 64
+                    || !c.bytes().all(|ch| ch.is_ascii_alphanumeric() || ch == b'-' || ch == b'_') {
+                    continue;
+                }
+                let Ok(width) = b.parse::<i32>() else { continue };
+                let Ok(height) = d.parse::<i32>() else { continue };
+                if !(32..=1600).contains(&width) || !(32..=8192).contains(&height) { continue; }
+                babel_check_permission("read");
+                let picture = gtk_picture_new_for_filename(babel_gui_c(a).as_ptr());
+                gtk_picture_set_content_fit(picture, 0); // GTK_CONTENT_FIT_FILL
+                gtk_widget_set_size_request(picture, width, height);
+                let click = gtk_gesture_click_new();
+                let state = Box::into_raw(Box::new(BabelGuiImageClick { gui, id: c.to_owned() }));
+                g_signal_connect_data(click, babel_gui_c("pressed").as_ptr(),
+                    babel_gui_image_pressed as *const c_void, state.cast(),
+                    babel_gui_image_destroy as *const c_void, 0);
+                gtk_widget_add_controller(picture, click);
                 babel_gui_append(*containers.last().unwrap(), picture);
             }
             "vim" => (*gui).vim = a == "1",
