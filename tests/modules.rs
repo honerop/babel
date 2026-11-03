@@ -49,3 +49,13 @@ fn desktop_browser_is_importable_without_bundling_an_application() {
     assert!(generated.contains("fn babel_desktop_browser_open("));
     assert!(generated.contains("--extensions-on-chrome-urls"));
 }
+
+
+#[test]
+fn module_parameters_shadow_application_function_names() {
+    // Imports must not break when module parameters happen to share names
+    // with application helpers, such as path / arguments / prompt.
+    let src = "use system.fs\nuse system.process\nuse system.terminal\nuse ai.chat\npath x = concat x \"/\"\narguments x = x\nprompt x = x\nprint system_fs_join \"/tmp\" \"ok\"\n";
+    let expanded = resolve_source(Path::new("examples/scope.babel"), src).unwrap();
+    assert!(compile(&expanded).is_ok());
+}
