@@ -660,7 +660,7 @@ unsafe fn babel_gui_render(gui: *mut BabelGui, title: &str, spec: &str) {
                 // imageclick<TAB>file<TAB>width<TAB>action<TAB>height
                 // The browser interprets the event and decides where links are.
                 // No page code or link URL is run by the widget.
-                if a.len() > 4096 || a.is_empty() || a.contains('\\0')
+                if a.len() > 4096 || a.is_empty() || a.contains('\0')
                     || c.is_empty() || c.len() > 64
                     || !c.bytes().all(|ch| ch.is_ascii_alphanumeric() || ch == b'-' || ch == b'_') {
                     continue;
