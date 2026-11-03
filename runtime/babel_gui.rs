@@ -228,7 +228,7 @@ unsafe extern "C" fn babel_gui_image_pressed(
     if !x.is_finite() || !y.is_finite() || x < 0.0 || y < 0.0 { return; }
     // Coordinates are local to the image widget, not the window.
     // 'imageclick' uses content-fit=FILL and exact requested dimensions.
-    (*state.gui).event = Some(format!("{}:{}:{}\\n", state.id, x.floor() as i32, y.floor() as i32));
+    (*state.gui).event = Some(format!("{}:{}:{}\n", state.id, x.floor() as i32, y.floor() as i32));
 }
 
 thread_local! {
