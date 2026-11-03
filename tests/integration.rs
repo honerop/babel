@@ -1111,3 +1111,34 @@ fn plica_preview_compiles_and_exits_cleanly_on_eof() {
     assert!(output.starts_with("Plica 0.1 | Babel-native developer preview"));
     assert!(output.contains("plica> "));
 }
+
+
+#[test]
+fn native_float_literals_arithmetic_and_inference() {
+    assert_eq!(execute("print + 1.25 2.75\nprint * 1.5 4.0\nprint / 7.5 2.5\nprint neg 0.25\nprint abs -3.5\nprint pow 2.0 3.0\nprint < 1.5 2.5\nprint max 2.0 3.5\n"), "4\n6\n3\n-0.25\n3.5\n8\ntrue\n3.5\n");
+    assert_eq!(execute("square x = * x + x 0.0\nprint square 1.5\nprint intfloat 7\nprint result_get floatint 3.75 0\n"), "2.25\n7\n3\n");
+    assert!(compile("print + 1.5 1").is_err());
+    assert!(compile("print + true 1.5").is_err());
+}
+
+#[test]
+fn native_float_json_and_recoverable_casts() {
+    let source = r#"obj = json "{\"a\":1.25,\"b\":17,\"c\":\"hi\",\"ok\":true}"
+print result_get tryfloat field obj "a" 0.0
+print result_get tryfloat field obj "b" 0.0
+print result_valid tryfloat field obj "c"
+print result_valid tryint field obj "a"
+print result_get tryint field obj "b" 0
+print result_get trytext field obj "c" ""
+print result_get trybool field obj "ok" false
+print result_get floatparse "2.5" 0.0
+print result_valid floatparse "NaN"
+print result_valid floatint 9223372036854775808.0
+print encode boxfloat 1.25
+print asfloat boxfloat 3.5
+"#;
+    assert_eq!(execute(source), "1.25\n17\nfalse\nfalse\n17\nhi\ntrue\n2.5\nfalse\nfalse\n1.25\n3.5\n");
+    assert!(compile("print asfloat 5").is_err());
+    assert!(compile("print boxfloat 5").is_err());
+    assert!(compile("print floatparse 5").is_err());
+}

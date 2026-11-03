@@ -226,6 +226,10 @@ fn babel_data_null(_: ()) -> BabelData { BabelData::Null }
 fn babel_data_int(v: i64) -> BabelData { BabelData::Number(v.to_string()) }
 fn babel_data_text(v: String) -> BabelData { BabelData::Text(v) }
 fn babel_data_bool(v: bool) -> BabelData { BabelData::Bool(v) }
+fn babel_data_float(v: f64) -> BabelData {
+    assert!(v.is_finite(), "JSON cannot encode NaN or infinity");
+    BabelData::Number(v.to_string())
+}
 fn babel_data_pair(a: BabelData, b: BabelData) -> BabelData { BabelData::List(vec![a, b]) }
 fn babel_data_push(value: BabelData, item: BabelData) -> BabelData {
     match value { BabelData::List(mut items) => { items.push(item); BabelData::List(items) },
@@ -256,6 +260,39 @@ fn babel_data_keys(value: BabelData) -> BabelData {
 fn babel_data_has(value: BabelData, key: String) -> bool {
     match value { BabelData::Object(fields) => fields.contains_key(&key),
         _ => panic!("has requires record") }
+}
+// Parse untrusted JSON using recoverable Result values.
+fn babel_data_tryint(value: BabelData) -> Result<i64, String> {
+    match value {
+        BabelData::Number(v) => v.parse::<i64>().map_err(|_| "expected i64 JSON number".into()),
+        _ => Err("expected JSON number".into()),
+    }
+}
+fn babel_data_tryfloat(value: BabelData) -> Result<f64, String> {
+    match value {
+        BabelData::Number(v) => babel_parse_float(v),
+        _ => Err("expected JSON number".into()),
+    }
+}
+fn babel_data_trytext(value: BabelData) -> Result<String, String> {
+    match value { BabelData::Text(v) => Ok(v), _ => Err("expected JSON string".into()) }
+}
+fn babel_data_trybool(value: BabelData) -> Result<bool, String> {
+    match value { BabelData::Bool(v) => Ok(v), _ => Err("expected JSON boolean".into()) }
+}
+fn babel_parse_float(v: String) -> Result<f64, String> {
+    v.parse::<f64>().map_err(|_| "invalid float".to_string()).and_then(|n|
+        if n.is_finite() { Ok(n) } else { Err("non-finite float".into()) })
+}
+fn babel_float_to_int(value: f64) -> Result<i64, String> {
+    if !value.is_finite() || value < -9223372036854775808.0 || value >= 9223372036854775808.0 {
+        Err("float outside i64 range".into())
+    } else {
+        Ok(value.trunc() as i64)
+    }
+}
+fn babel_data_asfloat(value: BabelData) -> f64 {
+    babel_data_tryfloat(value).expect("expected finite JSON number")
 }
 fn babel_data_asint(value: BabelData) -> i64 {
     match value { BabelData::Number(v) => v.parse::<i64>().expect("integer out of range"),
