@@ -169,7 +169,19 @@ pub fn format_root(source: &str) -> Result<String, String> {
             None => { body.push_str(original); body.push('\n'); }
         }
     }
-    let formatted = crate::format_source(&body).map_err(|e| e.to_string())?;
-    imports.push_str(&formatted);
+    if imports.is_empty() {
+        imports.push_str(&crate::format_source(&body).map_err(|e| e.to_string())?);
+        return Ok(imports);
+    }
+    // Include the imported signatures while parsing/formatting the root.
+    // The formatted module definitions are not written back to the root.
+    let expanded = resolve_source(Path::new("format.babel"), source)?;
+    let formatted = crate::format_source(&expanded).map_err(|e| e.to_string())?;
+    let count = body.lines().count();
+    let tail: Vec<&str> = formatted.lines().rev().take(count).collect();
+    for line in tail.into_iter().rev() {
+        imports.push_str(line);
+        imports.push('\n');
+    }
     Ok(imports)
 }
