@@ -36,3 +36,6 @@ and `media.audio`.
 This is the initial modularization, not complete isolation of builtin
 namespaces. Native functions remain accessible for compatibility.
 The AIR/LLVM compiler and Babel-to-C bootstrap do not yet resolve imports.
+
+Babel is a language/compiler repository. Applications such as browsers belong in
+independent projects; `desktop.browser` is a reusable module, not a bundled app.

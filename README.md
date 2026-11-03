@@ -396,6 +396,6 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [the co
 [MIT](LICENSE). © 2026 Babel contributors.
 
 
-## Importable segments and browser
+## Importable segments
 
-Babel supports `use segment.module` on its native Rust backend. See [segments](docs/segments.md) and the [Babel Chromium browser](apps/browser/README.md).
+Babel supports `use segment.module` on its native Rust backend. See [segment documentation](docs/segments.md). Browser applications live in separate projects and import Babel modules rather than living inside the compiler repository.
