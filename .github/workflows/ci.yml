@@ -12,13 +12,11 @@ jobs:
         run: clang --version
       - name: Rust compiler tests
         run: cargo test
-      - name: Segment imports and Babel browser source
+      - name: Segment import compatibility
         run: |
           cargo run --quiet -- check examples/segments_demo.babel
-          cargo run --quiet -- check apps/browser/main.babel
           cargo run --quiet -- build examples/segments_demo.babel -o /tmp/babel-segments-demo
           /tmp/babel-segments-demo | grep -x 'BABEL SEGMENTS'
-          python3 apps/browser/install_extensions.py --self-test
       - name: Native benchmark smoke test
         run: cargo run -- bench examples/arithmetic.babel --backend both --runs 1 --json
       - name: Native source token benchmark (o200k_base)

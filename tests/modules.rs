@@ -42,9 +42,9 @@ fn duplicate_imports_do_not_duplicate_definitions() {
 }
 
 #[test]
-fn browser_is_a_babel_app() {
-    let source = include_str!("../apps/browser/main.babel");
-    let expanded = resolve_source(Path::new("apps/browser/main.babel"), source).unwrap();
+fn desktop_browser_is_importable_without_bundling_an_application() {
+    let source = "use desktop.browser\n";
+    let expanded = resolve_source(Path::new("external/browser/src/main.babel"), source).unwrap();
     let generated = compile(&expanded).unwrap().rust;
     assert!(generated.contains("fn babel_desktop_browser_open("));
     assert!(generated.contains("--extensions-on-chrome-urls"));
