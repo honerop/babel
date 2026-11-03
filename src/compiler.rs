@@ -446,9 +446,6 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
         Expr::Int(_) => Ok(Ty::Int), Expr::Float(_) => Ok(Ty::Float), Expr::Bool(_) => Ok(Ty::Bool), Expr::Str(_) => Ok(Ty::Str), Expr::Unit => Ok(Ty::Unit),
         Expr::Var(w) => env.get(w).cloned().ok_or_else(|| err(line, format!("unknown variable '{w}' (functions cannot capture top-level values in 0.2.0)"))),
         Expr::Call(name, args) => {
-            if name == "concat" {
-                return emit_concat(expr, fn_names, local, global);
-            }
             if matches!(name.as_str(), "listmap"|"listfilter"|"listfold") {
                 let Expr::Str(fn_name) = &args[0] else {
                     return Err(err(line, "list callbacks require a quoted function name"));
@@ -860,6 +857,9 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
             if matches!(ty, Ty::Str | Ty::Data | Ty::Cell | Ty::Task | Ty::List(_) | Ty::Map(_) | Ty::Tuple(_,_) | Ty::Tuple3(_,_,_) | Ty::Var(_) | Ty::Option(_) | Ty::Result(_)) { format!("{}.clone()", safe_id(w)) } else { safe_id(w) }
         }
         Expr::Call(name, args) => {
+            if name == "concat" {
+                return emit_concat(expr, fn_names, local, global);
+            }
             if matches!(name.as_str(), "listmap"|"listfilter"|"listfold") {
                 let Expr::Str(callback) = &args[0] else { unreachable!("callback checked"); };
                 let a: Vec<String> = args[1..].iter().map(|e| rust_expr(e, fn_names, local, global)).collect();
