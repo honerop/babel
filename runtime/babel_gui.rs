@@ -753,7 +753,7 @@ unsafe fn babel_gui_width_event(gui: *mut BabelGui) {
     (*gui).width_stable_ticks = (*gui).width_stable_ticks.saturating_add(1);
     if (*gui).width_stable_ticks >= 4 {
         (*gui).reported_width = content_width;
-        (*gui).event = Some(format!("resize:{content_width}\\n"));
+        (*gui).event = Some(format!("resize:{content_width}\n"));
     }
 }
 fn babel_guitick(delay_ms: i64) -> String {
