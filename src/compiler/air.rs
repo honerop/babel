@@ -14,6 +14,7 @@ struct Module { functions: Vec<Function>, items: Vec<Top> }
 fn lower_expr(e: &Expr, env: &HashMap<String, Ty>, checked: &Checked, line: usize) -> Result<Node, CompileError> {
     let (ty, kind) = match e {
         Expr::Int(v) => (Ty::Int, Kind::Int(*v)),
+        Expr::Float(_) => return Err(err(line, "LLVM backend does not support Float64 yet; use the Rust backend")),
         Expr::Bool(v) => (Ty::Bool, Kind::Bool(*v)),
         Expr::Unit => (Ty::Unit, Kind::Unit),
         Expr::Str(_) => return Err(err(line, "LLVM backend does not support strings yet; use the Rust backend")),
@@ -88,7 +89,7 @@ fn lower(checked: &Checked) -> Result<Module, CompileError> {
     Ok(Module {functions,items})
 }
 
-fn ty(t:&Ty) -> &'static str { match t {Ty::Int=>"i64",Ty::Bool=>"i1",Ty::Unit=>"i8",Ty::Str=>"ptr",Ty::Data|Ty::Cell|Ty::Task|Ty::List(_)|Ty::Map(_)|Ty::Tuple(_,_)|Ty::Tuple3(_,_,_)|Ty::Option(_)|Ty::Result(_)=>unreachable!("Structured types are not supported by AIR/LLVM"),Ty::Var(_)=>unreachable!("types must be resolved") } }
+fn ty(t:&Ty) -> &'static str { match t {Ty::Int=>"i64",Ty::Float=>unreachable!("LLVM backend does not support Float64"),Ty::Bool=>"i1",Ty::Unit=>"i8",Ty::Str=>"ptr",Ty::Data|Ty::Cell|Ty::Task|Ty::List(_)|Ty::Map(_)|Ty::Tuple(_,_)|Ty::Tuple3(_,_,_)|Ty::Option(_)|Ty::Result(_)=>unreachable!("Structured types are not supported by AIR/LLVM"),Ty::Var(_)=>unreachable!("types must be resolved") } }
 fn air_node(n:&Node) -> String {
     match &n.kind {
         Kind::Int(v) => format!("{v}:i64"), Kind::Bool(v) => format!("{v}:bool"), Kind::Unit => "_:unit".into(),
