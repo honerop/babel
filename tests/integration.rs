@@ -1146,13 +1146,13 @@ print asfloat boxfloat 3.5
 
 #[test]
 fn nested_concat_uses_one_buffer_and_preserves_output() {
-    let source = "repeat_word word = concat concat word \" \" word\nprint concat concat concat \"α\" \"β\" \"γ\" \"!\"\nprint concat \"hello \" upper \"world\"\nprint repeat_word \"hello\"\n";
+    let source = "repeat_word term = concat concat term \" \" term\nprint concat concat concat \"α\" \"β\" \"γ\" \"!\"\nprint concat \"hello \" upper \"world\"\nprint repeat_word \"hello\"\n";
     assert_eq!(execute(source), "αβγ!\nhello WORLD\nhello hello\n");
     let generated = compile("print concat concat concat \"a\" \"b\" \"c\" \"d\"\n").unwrap().rust;
     assert_eq!(generated.matches("let mut babel_joined = String::new()").count(), 1);
     assert_eq!(generated.matches("babel_joined.push_str(").count(), 4);
     assert!(generated.contains("babel_joined.push_str(\"a\")"));
-    let generic = compile("repeat_word word = concat concat word \" \" word\nprint repeat_word \"x\"\n").unwrap().rust;
-    assert!(generic.contains("babel_word.as_str()"));
+    let generic = compile("repeat_word term = concat concat term \" \" term\nprint repeat_word \"x\"\n").unwrap().rust;
+    assert!(generic.contains("babel_term.as_str()"));
     assert!(!generic.contains("babel_joined.push_str(babel_word.clone())"));
 }
