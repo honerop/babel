@@ -283,9 +283,9 @@ unsafe extern "C" fn babel_gui_key(_controller: *mut c_void, key: u32,
     // is focused without changing what the user has typed.
     if gui.watch_links && modifiers & 8 != 0 && modifiers & (4 | (1 << 26)) == 0 {
         let event = match key {
-            0x6a | 0x4a => Some("link-next\\n"),
-            0x6b | 0x4b => Some("link-prev\\n"),
-            0xff0d | 0xff8d => Some("link-open\\n"),
+            0x6a | 0x4a => Some("link-next\n"),
+            0x6b | 0x4b => Some("link-prev\n"),
+            0xff0d | 0xff8d => Some("link-open\n"),
             _ => None,
         };
         if let Some(action) = event {
