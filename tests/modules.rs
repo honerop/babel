@@ -9,8 +9,8 @@ fn imports_from_two_segments_compile_without_linking_gui() {
     assert_eq!(expanded.matches("# module core.text").count(), 1);
     assert_eq!(expanded.matches("# module system.process").count(), 1);
     let generated = compile(&expanded).unwrap().rust;
-    assert!(generated.contains("fn core_text_caps("));
-    assert!(generated.contains("fn system_process_run("));
+    assert!(generated.contains("fn babel_core_text_caps("));
+    assert!(generated.contains("fn babel_system_process_run("));
     assert!(!generated.contains("fn babel_gui("));
     assert!(!generated.contains("fn babel_chat("));
 }
@@ -46,6 +46,6 @@ fn browser_is_a_babel_app() {
     let source = include_str!("../apps/browser/main.babel");
     let expanded = resolve_source(Path::new("apps/browser/main.babel"), source).unwrap();
     let generated = compile(&expanded).unwrap().rust;
-    assert!(generated.contains("fn desktop_browser_open("));
+    assert!(generated.contains("fn babel_desktop_browser_open("));
     assert!(generated.contains("--extensions-on-chrome-urls"));
 }
