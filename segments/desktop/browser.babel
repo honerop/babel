@@ -1,4 +1,4 @@
 # Chromium is the web engine; Babel defines and launches the browser profile.
-# --extensions-on-chrome-urls intentionally expands extension reach.
-# It DOES NOT disable Chromium sandboxing or bypass manifest permissions.
-desktop_browser_open binary profile extensions url = processinherit binary ["--no-first-run" "--no-default-browser-check" "--extensions-on-chrome-urls" concat "--user-data-dir=" profile concat "--load-extension=" extensions url]
+# Extensions can reach internal chrome pages; native sandbox and API permissions remain.
+# The process API expects Data lists (array/push/boxstr), not typed list literals.
+desktop_browser_open binary profile extensions url = processinherit binary push push push push push push array _ boxstr "--no-first-run" boxstr "--no-default-browser-check" boxstr "--extensions-on-chrome-urls" boxstr concat "--user-data-dir=" profile boxstr concat "--load-extension=" extensions boxstr url
