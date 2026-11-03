@@ -72,6 +72,7 @@ unsafe extern "C" {
     fn gtk_text_buffer_set_text(buffer: *mut c_void, text: *const c_char, size: i32);
     fn gtk_widget_set_hexpand(widget: *mut c_void, expand: i32);
     fn gtk_widget_set_size_request(widget: *mut c_void, width: i32, height: i32);
+    fn gtk_widget_get_width(widget: *mut c_void) -> i32;
     fn gtk_widget_set_vexpand(widget: *mut c_void, expand: i32);
     fn gtk_widget_set_margin_start(widget: *mut c_void, margin: i32);
     fn gtk_widget_set_margin_end(widget: *mut c_void, margin: i32);
@@ -157,6 +158,10 @@ struct BabelGui {
     last_user_count: usize,
     vim: bool,
     insert_mode: bool,
+    watch_width: bool,
+    reported_width: i32,
+    candidate_width: i32,
+    width_stable_ticks: u8,
 }
 // A GtkAdjustment emits "changed" again after GTK measures the new
 // transcript. Restoring the value before that measurement jumps to the top.
@@ -364,6 +369,7 @@ unsafe fn babel_gui_create() -> *mut BabelGui {
         window, style_provider, event: None, entry: ptr::null_mut(), scroll: ptr::null_mut(),
         transcript: ptr::null_mut(), selects: Vec::new(),
         last_g: false, last_user_count: 0, vim: false, insert_mode: true,
+        watch_width: false, reported_width: 0, candidate_width: 0, width_stable_ticks: 0,
     }));
     g_signal_connect_data(window, babel_gui_c("close-request").as_ptr(),
         babel_gui_close as *const c_void, gui.cast(), ptr::null(), 0);
@@ -400,6 +406,10 @@ unsafe fn babel_gui_render(gui: *mut BabelGui, title: &str, spec: &str) {
     (*gui).vim = false;
     (*gui).insert_mode = true;
     (*gui).last_g = false;
+    (*gui).watch_width = spec.lines().any(|line| line == "watchwidth\t1");
+    if !(*gui).watch_width { (*gui).reported_width = 0; }
+    (*gui).candidate_width = 0;
+    (*gui).width_stable_ticks = 0;
     let root = gtk_box_new(1, 10);
     if spec.lines().any(|line| line == "theme\tcyan") {
         gtk_widget_add_css_class(root, babel_gui_c("babel-theme-cyan").as_ptr());
@@ -678,7 +688,14 @@ unsafe fn babel_gui_render(gui: *mut BabelGui, title: &str, spec: &str) {
                     babel_gui_image_pressed as *const c_void, state.cast(),
                     babel_gui_image_destroy as *const c_void, 0);
                 gtk_widget_add_controller(picture, click);
-                babel_gui_append(*containers.last().unwrap(), picture);
+                // A scrollable viewport is essential: a fixed-size picture must
+                // not become a minimum width for the whole browser window.
+                let viewport = gtk_scrolled_window_new();
+                gtk_scrolled_window_set_child(viewport, picture);
+                gtk_widget_set_hexpand(viewport, 1);
+                gtk_widget_set_vexpand(viewport, 1);
+                gtk_widget_set_size_request(viewport, -1, 220);
+                babel_gui_append(*containers.last().unwrap(), viewport);
             }
             "vim" => (*gui).vim = a == "1",
             _ => {}
@@ -718,6 +735,27 @@ fn babel_guiupdate(title: String, spec: String) {
 }
 // Processes pending GTK events without rebuilding widgets or losing typed input.
 // "tick\n" means no user event. Delay is capped at 250 ms for responsiveness.
+// Only layouts explicitly opting in receive resize events. Debounce the
+// allocated toplevel width and do not overwrite a pending user action.
+unsafe fn babel_gui_width_event(gui: *mut BabelGui) {
+    if !(*gui).watch_width || (*gui).event.is_some() { return; }
+    let window_width = gtk_widget_get_width((*gui).window);
+    if window_width <= 0 { return; }
+    // Generic GUI has 18px margins each side; leave an extra 12px for
+    // scrollbars and borders. The browser can clamp further on its side.
+    let content_width = (window_width - 48).clamp(320, 1400);
+    if (content_width - (*gui).reported_width).abs() < 24 { return; }
+    if content_width != (*gui).candidate_width {
+        (*gui).candidate_width = content_width;
+        (*gui).width_stable_ticks = 0;
+        return;
+    }
+    (*gui).width_stable_ticks = (*gui).width_stable_ticks.saturating_add(1);
+    if (*gui).width_stable_ticks >= 4 {
+        (*gui).reported_width = content_width;
+        (*gui).event = Some(format!("resize:{content_width}\n"));
+    }
+}
 fn babel_guitick(delay_ms: i64) -> String {
     if !(0..=250).contains(&delay_ms) {
         return "error\nGUI tick delay must be 0..250 ms".into();
@@ -729,7 +767,9 @@ fn babel_guitick(delay_ms: i64) -> String {
         unsafe {
             if let Some(event) = (*gui).event.take() { return event; }
             // GTK callbacks (including close-request) run on this thread.
-            if g_main_context_iteration(ptr::null_mut(), 0) != 0 { continue; }
+            g_main_context_iteration(ptr::null_mut(), 0);
+            babel_gui_width_event(gui);
+            if let Some(event) = (*gui).event.take() { return event; }
         }
         if std::time::Instant::now() >= until { return "tick\n".into(); }
         std::thread::sleep(std::time::Duration::from_millis(2));
@@ -741,7 +781,10 @@ fn babel_gui(title: String, spec: String) -> String {
     unsafe {
         loop {
             if let Some(event) = (*gui).event.take() { return event; }
-            g_main_context_iteration(ptr::null_mut(), 1);
+            g_main_context_iteration(ptr::null_mut(), 0);
+            babel_gui_width_event(gui);
+            if let Some(event) = (*gui).event.take() { return event; }
+            std::thread::sleep(std::time::Duration::from_millis(25));
         }
     }
 }
