@@ -8,7 +8,7 @@ legacy single-file programs or changing primitive builtin names.
 use core.text
 use system.process
 print core_text_caps "hello"
-print asbool field system_process_run "true" ["ignored"] "ok"
+print asbool field system_process_run "true" push array _ boxstr "ignored" "ok"
 ```
 
 Run `cargo run -- run examples/segments_demo.babel`.
