@@ -133,6 +133,11 @@ pub fn format_source(source: &str) -> Result<String, CompileError> {
     Ok(output)
 }
 
+fn float_literal(s: &str) -> bool {
+    (s.contains('.') || s.contains('e') || s.contains('E'))
+        && s.chars().next().is_some_and(|c| c.is_ascii_digit() || c == '-')
+        && s.parse::<f64>().is_ok_and(f64::is_finite)
+}
 fn valid_name(s: &str) -> bool {
     let mut chars = s.chars();
     matches!(chars.next(), Some(c) if c.is_ascii_alphabetic())
@@ -142,7 +147,7 @@ fn valid_name(s: &str) -> bool {
 
 #[derive(Clone, Debug)]
 enum Expr {
-    Int(i64), Bool(bool), Str(String), Unit, Var(String),
+    Int(i64), Float(String), Bool(bool), Str(String), Unit, Var(String),
     Call(String, Vec<Expr>),
 }
 #[derive(Clone, Debug)]
@@ -179,7 +184,7 @@ fn builtin_arity(name: &str) -> Option<usize> {
         "ffi2" => 4,
         "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"wavwrite"|"svgwrite"|"gltfwrite"|"tcprequest"|"httpserveonce"|"ffi0"|"tuple2"|"pathjoin"|"processrun"|"processinherit"|"split"|"strjoin"|"listtake"|"listdrop"|"listappend"|"listzip" => 2,
         "chat"|"put"|"fold"|"iterate"|"tuple3"|"sqlquery"|"sqlexec"|"listfold"|"httprequest"|"mapset"|"mapat"|"ffi1" => 3,
-        "not"|"neg"|"abs"|"assert"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"argv"|"readline"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues"|"tomlparse"|"tomlwrite"|"tuplefst"|"tuplesnd"|"tupleswap"|"tuple3fst"|"tuple3snd"|"tuple3third"|"fslist"|"fsmkdir"|"fsremove"|"workingdir"|"changedir"|"termwrite"|"lines"|"listreverse"|"listflatten"|"sortint"|"sortstr"|"listhead"|"listlast"|"listenumerate" => 1,
+        "not"|"neg"|"abs"|"assert"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"argv"|"readline"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxfloat"|"boxstr"|"boxbool"|"asint"|"asfloat"|"astext"|"asbool"|"tryfloat"|"tryint"|"trytext"|"trybool"|"intfloat"|"floatint"|"floatparse"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues"|"tomlparse"|"tomlwrite"|"tuplefst"|"tuplesnd"|"tupleswap"|"tuple3fst"|"tuple3snd"|"tuple3third"|"fslist"|"fsmkdir"|"fsremove"|"workingdir"|"changedir"|"termwrite"|"lines"|"listreverse"|"listflatten"|"sortint"|"sortstr"|"listhead"|"listlast"|"listenumerate" => 1,
         _ => return None,
     })
 }
@@ -221,6 +226,7 @@ impl ExpressionParser<'_> {
                 if w == "false" { return Ok(Expr::Bool(false)); }
                 if w == "_" { return Ok(Expr::Unit); }
                 if let Ok(n) = w.parse::<i64>() { return Ok(Expr::Int(n)); }
+                if float_literal(&w) { return Ok(Expr::Float(w)); }
                 // Function parameters shadow globally defined function names.
                 // Otherwise importing a module with an `arguments` or `path` parameter
                 // breaks whenever an application defines a same-named helper.
@@ -308,11 +314,11 @@ fn parse(source: &str) -> Result<Program, CompileError> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum Ty { Int, Bool, Str, Data, Cell, Task, List(Box<Ty>), Map(Box<Ty>), Tuple(Box<Ty>, Box<Ty>), Tuple3(Box<Ty>, Box<Ty>, Box<Ty>), Option(Box<Ty>), Result(Box<Ty>), Unit, Var(usize) }
+enum Ty { Int, Float, Bool, Str, Data, Cell, Task, List(Box<Ty>), Map(Box<Ty>), Tuple(Box<Ty>, Box<Ty>), Tuple3(Box<Ty>, Box<Ty>, Box<Ty>), Option(Box<Ty>), Result(Box<Ty>), Unit, Var(usize) }
 impl Ty {
     fn rust(&self) -> String {
         match self {
-            Ty::Int => "i64".into(), Ty::Bool => "bool".into(),
+            Ty::Int => "i64".into(), Ty::Float => "f64".into(), Ty::Bool => "bool".into(),
             Ty::Str => "String".into(), Ty::Data => "BabelData".into(),
             Ty::Cell => "BabelCell".into(), Ty::Task => "BabelTask".into(),
             Ty::List(inner) => format!("Vec<{}>", inner.rust()),
@@ -431,9 +437,13 @@ struct Checked {
     value_types: HashMap<String, Ty>,
 }
 
+// Floats select Float64; unconstrained numeric arguments retain the i64 default.
+fn numeric_type(actual: &[Ty], types: &mut Types) -> Ty {
+    if actual.iter().any(|t| types.resolve(t.clone()) == Ty::Float) { Ty::Float } else { Ty::Int }
+}
 fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &HashMap<String, Sig>, types: &mut Types) -> Result<Ty, CompileError> {
     match expr {
-        Expr::Int(_) => Ok(Ty::Int), Expr::Bool(_) => Ok(Ty::Bool), Expr::Str(_) => Ok(Ty::Str), Expr::Unit => Ok(Ty::Unit),
+        Expr::Int(_) => Ok(Ty::Int), Expr::Float(_) => Ok(Ty::Float), Expr::Bool(_) => Ok(Ty::Bool), Expr::Str(_) => Ok(Ty::Str), Expr::Unit => Ok(Ty::Unit),
         Expr::Var(w) => env.get(w).cloned().ok_or_else(|| err(line, format!("unknown variable '{w}' (functions cannot capture top-level values in 0.2.0)"))),
         Expr::Call(name, args) => {
             if matches!(name.as_str(), "listmap"|"listfilter"|"listfold") {
@@ -498,10 +508,25 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
             }
             let int = Ty::Int; let boolty = Ty::Bool; let string = Ty::Str;
             let result = match name.as_str() {
-                "+"|"-"|"*"|"/"|"%"|"min"|"max"|"pow" => { for a in actual { types.unify(a, int.clone(), line)?; } int },
-                "neg"|"abs" => { types.unify(actual[0].clone(), int.clone(), line)?; int },
-                "clamp" => { for a in actual { types.unify(a, int.clone(), line)?; } int },
-                "<"|"<="|">"|">=" => { for a in actual { types.unify(a, int.clone(), line)?; } boolty },
+                "+"|"-"|"*"|"/"|"%"|"min"|"max"|"pow" => {
+                    let ty=numeric_type(&actual,types);
+                    for a in actual { types.unify(a, ty.clone(), line)?; }
+                    ty
+                },
+                "neg"|"abs" => {
+                    let ty=numeric_type(&actual,types);
+                    types.unify(actual[0].clone(),ty.clone(),line)?; ty
+                },
+                "clamp" => {
+                    let ty=numeric_type(&actual,types);
+                    for a in actual { types.unify(a,ty.clone(),line)?; }
+                    ty
+                },
+                "<"|"<="|">"|">=" => {
+                    let ty=numeric_type(&actual,types);
+                    for a in actual {types.unify(a,ty.clone(),line)?;}
+                    boolty
+                },
                 "=="|"!=" => { types.unify(actual[0].clone(), actual[1].clone(), line)?; boolty },
                 "and"|"or"|"not" => { for a in actual { types.unify(a, boolty.clone(), line)?; } boolty },
                 "if" => { types.unify(actual[0].clone(), boolty, line)?; types.unify(actual[1].clone(), actual[2].clone(), line)?; actual[1].clone() },
@@ -648,9 +673,18 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "json"|"tryjson" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Data },
                 "array"|"record"|"nil" => { types.unify(actual[0].clone(), Ty::Unit, line)?; Ty::Data },
                 "boxint" => { types.unify(actual[0].clone(), Ty::Int, line)?; Ty::Data },
+                "boxfloat" => { types.unify(actual[0].clone(), Ty::Float, line)?; Ty::Data },
                 "boxstr" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Data },
                 "boxbool" => { types.unify(actual[0].clone(), Ty::Bool, line)?; Ty::Data },
                 "asint" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Int },
+                "asfloat" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Float },
+                "tryfloat" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Result(Box::new(Ty::Float)) },
+                "tryint" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Result(Box::new(Ty::Int)) },
+                "trytext" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Result(Box::new(Ty::Str)) },
+                "trybool" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Result(Box::new(Ty::Bool)) },
+                "intfloat" => { types.unify(actual[0].clone(), Ty::Int, line)?; Ty::Float },
+                "floatint" => { types.unify(actual[0].clone(), Ty::Float, line)?; Ty::Result(Box::new(Ty::Int)) },
+                "floatparse" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Result(Box::new(Ty::Float)) },
                 "astext"|"encode" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Str },
                 "asbool" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Bool },
                 "size" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Int },
@@ -786,6 +820,7 @@ fn safe_id(name: &str) -> String {
 fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty>, global: &HashMap<String, Ty>) -> String {
     match expr {
         Expr::Int(n) => format!("{n}_i64"),
+        Expr::Float(n) => format!("{n}_f64"),
         Expr::Bool(b) => b.to_string(),
         Expr::Str(s) => format!("{:?}.to_string()", s),
         Expr::Unit => "()".into(),
@@ -820,11 +855,11 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
             let a: Vec<String> = args.iter().map(|e| rust_expr(e, fn_names, local, global)).collect();
             if fn_names.contains(name) { return format!("{}({})", safe_id(name), a.join(", ")); }
             match name.as_str() {
-                "+" => format!("({}).checked_add({}).expect(\"integer overflow\")", a[0], a[1]),
-                "-" => format!("({}).checked_sub({}).expect(\"integer overflow\")", a[0], a[1]),
-                "*" => format!("({}).checked_mul({}).expect(\"integer overflow\")", a[0], a[1]),
-                "/" => format!("({}).checked_div({}).expect(\"division by zero or overflow\")", a[0], a[1]),
-                "%" => format!("({}).checked_rem({}).expect(\"division by zero or overflow\")", a[0], a[1]),
+                "+" => format!("BabelNumeric::babel_add({}, {})", a[0], a[1]),
+                "-" => format!("BabelNumeric::babel_sub({}, {})", a[0], a[1]),
+                "*" => format!("BabelNumeric::babel_mul({}, {})", a[0], a[1]),
+                "/" => format!("BabelNumeric::babel_div({}, {})", a[0], a[1]),
+                "%" => format!("BabelNumeric::babel_rem({}, {})", a[0], a[1]),
                 "=="|"!="|"<"|"<="|">"|">=" => format!("(({}) {} ({}))", a[0], name, a[1]),
                 "and" => format!("(({}) && ({}))", a[0], a[1]),
                 "or" => format!("(({}) || ({}))", a[0], a[1]),
@@ -915,9 +950,18 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "record" => format!("babel_data_record({})", a[0]),
                 "nil" => format!("babel_data_null({})", a[0]),
                 "boxint" => format!("babel_data_int({})", a[0]),
+                "boxfloat" => format!("babel_data_float({})", a[0]),
                 "boxstr" => format!("babel_data_text({})", a[0]),
                 "boxbool" => format!("babel_data_bool({})", a[0]),
                 "asint" => format!("babel_data_asint({})", a[0]),
+                "asfloat" => format!("babel_data_asfloat({})", a[0]),
+                "tryfloat" => format!("babel_data_tryfloat({})", a[0]),
+                "tryint" => format!("babel_data_tryint({})", a[0]),
+                "trytext" => format!("babel_data_trytext({})", a[0]),
+                "trybool" => format!("babel_data_trybool({})", a[0]),
+                "intfloat" => format!("({} as f64)", a[0]),
+                "floatint" => format!("babel_float_to_int({})", a[0]),
+                "floatparse" => format!("babel_parse_float({})", a[0]),
                 "astext" => format!("babel_data_astext({})", a[0]),
                 "asbool" => format!("babel_data_asbool({})", a[0]),
                 "size" => format!("babel_data_size({})", a[0]),
@@ -964,11 +1008,11 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "argv" => format!("babel_argv({})", a[0]),
                 "readline" => format!("babel_readline({})", a[0]),
                 "termwrite" => format!("babel_termwrite({})", a[0]),
-                "abs" => format!("({}).checked_abs().expect(\"integer overflow\")", a[0]),
-                "neg" => format!("({}).checked_neg().expect(\"integer overflow\")", a[0]),
-                "min" => format!("std::cmp::min({}, {})", a[0], a[1]),
-                "max" => format!("std::cmp::max({}, {})", a[0], a[1]),
-                "pow" => format!("({}).checked_pow(u32::try_from({}).expect(\"invalid exponent\")).expect(\"integer overflow\")", a[0], a[1]),
+                "abs" => format!("BabelNumeric::babel_abs({})", a[0]),
+                "neg" => format!("BabelNumeric::babel_neg({})", a[0]),
+                "min" => format!("BabelNumeric::babel_min({}, {})", a[0], a[1]),
+                "max" => format!("BabelNumeric::babel_max({}, {})", a[0], a[1]),
+                "pow" => format!("BabelNumeric::babel_pow({}, {})", a[0], a[1]),
                 "clamp" => format!("({}).clamp({}, {})", a[0], a[1], a[2]),
                 _ => unreachable!("unknown builtin after type checking"),
             }
@@ -1039,6 +1083,7 @@ fn emit(checked: &Checked) -> String {
     // Keep printing/conversion well-defined for all four BABEL primitive types.
     out.push_str("trait BabelText { fn babel_text(&self) -> String; }\n");
     out.push_str("impl BabelText for i64 { fn babel_text(&self) -> String { self.to_string() } }\n");
+    out.push_str("impl BabelText for f64 { fn babel_text(&self) -> String { self.to_string() } }\n");
     out.push_str("impl BabelText for bool { fn babel_text(&self) -> String { self.to_string() } }\n");
     out.push_str("impl BabelText for String { fn babel_text(&self) -> String { self.clone() } }\n");
     out.push_str("impl BabelText for () { fn babel_text(&self) -> String { \"()\".to_string() } }\n");
@@ -1050,6 +1095,7 @@ fn emit(checked: &Checked) -> String {
     out.push_str("impl<T: BabelText> BabelText for Result<T,String> { fn babel_text(&self) -> String { match self { Ok(v) => format!(\"ok({})\",v.babel_text()), Err(e) => format!(\"err({})\",e) } } }\n");
     out.push_str("fn babel_print<T: BabelText>(v: T) { println!(\"{}\", v.babel_text()); }\n");
     out.push_str("fn babel_str<T: BabelText>(v: T) -> String { v.babel_text() }\n\n");
+    out.push_str("\ntrait BabelNumeric: Sized {\n    fn babel_add(self, rhs: Self) -> Self;\n    fn babel_sub(self, rhs: Self) -> Self;\n    fn babel_mul(self, rhs: Self) -> Self;\n    fn babel_div(self, rhs: Self) -> Self;\n    fn babel_rem(self, rhs: Self) -> Self;\n    fn babel_pow(self, rhs: Self) -> Self;\n    fn babel_min(self, rhs: Self) -> Self;\n    fn babel_max(self, rhs: Self) -> Self;\n    fn babel_abs(self) -> Self;\n    fn babel_neg(self) -> Self;\n}\nimpl BabelNumeric for i64 {\n    fn babel_add(self, rhs: Self) -> Self { self.checked_add(rhs).expect(\"integer overflow\") }\n    fn babel_sub(self, rhs: Self) -> Self { self.checked_sub(rhs).expect(\"integer overflow\") }\n    fn babel_mul(self, rhs: Self) -> Self { self.checked_mul(rhs).expect(\"integer overflow\") }\n    fn babel_div(self, rhs: Self) -> Self { self.checked_div(rhs).expect(\"division by zero or overflow\") }\n    fn babel_rem(self, rhs: Self) -> Self { self.checked_rem(rhs).expect(\"division by zero or overflow\") }\n    fn babel_pow(self, rhs: Self) -> Self {\n        self.checked_pow(u32::try_from(rhs).expect(\"invalid exponent\")).expect(\"integer overflow\")\n    }\n    fn babel_min(self, rhs: Self) -> Self { self.min(rhs) }\n    fn babel_max(self, rhs: Self) -> Self { self.max(rhs) }\n    fn babel_abs(self) -> Self { self.checked_abs().expect(\"integer overflow\") }\n    fn babel_neg(self) -> Self { self.checked_neg().expect(\"integer overflow\") }\n}\nimpl BabelNumeric for f64 {\n    fn babel_add(self, rhs: Self) -> Self { self + rhs }\n    fn babel_sub(self, rhs: Self) -> Self { self - rhs }\n    fn babel_mul(self, rhs: Self) -> Self { self * rhs }\n    fn babel_div(self, rhs: Self) -> Self { self / rhs }\n    fn babel_rem(self, rhs: Self) -> Self { self % rhs }\n    fn babel_pow(self, rhs: Self) -> Self { self.powf(rhs) }\n    fn babel_min(self, rhs: Self) -> Self { self.min(rhs) }\n    fn babel_max(self, rhs: Self) -> Self { self.max(rhs) }\n    fn babel_abs(self) -> Self { self.abs() }\n    fn babel_neg(self) -> Self { -self }\n}\n");
     out.push_str(r#"fn babel_before(s: String, needle: String) -> String {
     if needle.is_empty() { return String::new(); }
     s.split_once(needle.as_str()).map(|(a, _)| a.to_string()).unwrap_or(s)
