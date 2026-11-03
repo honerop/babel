@@ -159,6 +159,7 @@ struct BabelGui {
     vim: bool,
     insert_mode: bool,
     watch_width: bool,
+    watch_links: bool,
     reported_width: i32,
     candidate_width: i32,
     width_stable_ticks: u8,
@@ -277,6 +278,21 @@ unsafe extern "C" fn babel_gui_close(_window: *mut c_void, data: *mut c_void) ->
 unsafe extern "C" fn babel_gui_key(_controller: *mut c_void, key: u32,
         _hardware: u32, modifiers: u32, data: *mut c_void) -> i32 {
     let gui = &mut *(data as *mut BabelGui);
+    // App-controlled link navigation is opt-in. Alt+J/K changes selection
+    // and Alt+Enter activates it. These work even while the address field
+    // is focused without changing what the user has typed.
+    if gui.watch_links && modifiers & 8 != 0 && modifiers & (4 | (1 << 26)) == 0 {
+        let event = match key {
+            0x6a | 0x4a => Some("link-next\\n"),
+            0x6b | 0x4b => Some("link-prev\\n"),
+            0xff0d | 0xff8d => Some("link-open\\n"),
+            _ => None,
+        };
+        if let Some(action) = event {
+            if gui.event.is_none() { gui.event = Some(action.to_owned()); }
+            return 1;
+        }
+    }
     if !gui.vim { return 0; }
 
     // Clicking the entry is another way to enter insert mode.
@@ -369,7 +385,8 @@ unsafe fn babel_gui_create() -> *mut BabelGui {
         window, style_provider, event: None, entry: ptr::null_mut(), scroll: ptr::null_mut(),
         transcript: ptr::null_mut(), selects: Vec::new(),
         last_g: false, last_user_count: 0, vim: false, insert_mode: true,
-        watch_width: false, reported_width: 0, candidate_width: 0, width_stable_ticks: 0,
+        watch_width: false, watch_links: false,
+        reported_width: 0, candidate_width: 0, width_stable_ticks: 0,
     }));
     g_signal_connect_data(window, babel_gui_c("close-request").as_ptr(),
         babel_gui_close as *const c_void, gui.cast(), ptr::null(), 0);
@@ -407,6 +424,7 @@ unsafe fn babel_gui_render(gui: *mut BabelGui, title: &str, spec: &str) {
     (*gui).insert_mode = true;
     (*gui).last_g = false;
     (*gui).watch_width = spec.lines().any(|line| line == "watchwidth\t1");
+    (*gui).watch_links = spec.lines().any(|line| line == "watchlinks\t1");
     if !(*gui).watch_width { (*gui).reported_width = 0; }
     (*gui).candidate_width = 0;
     (*gui).width_stable_ticks = 0;
