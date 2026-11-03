@@ -446,6 +446,9 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
         Expr::Int(_) => Ok(Ty::Int), Expr::Float(_) => Ok(Ty::Float), Expr::Bool(_) => Ok(Ty::Bool), Expr::Str(_) => Ok(Ty::Str), Expr::Unit => Ok(Ty::Unit),
         Expr::Var(w) => env.get(w).cloned().ok_or_else(|| err(line, format!("unknown variable '{w}' (functions cannot capture top-level values in 0.2.0)"))),
         Expr::Call(name, args) => {
+            if name == "concat" {
+                return emit_concat(expr, fn_names, local, global);
+            }
             if matches!(name.as_str(), "listmap"|"listfilter"|"listfold") {
                 let Expr::Str(fn_name) = &args[0] else {
                     return Err(err(line, "list callbacks require a quoted function name"));
@@ -816,6 +819,34 @@ fn safe_id(name: &str) -> String {
     // Identifiers are restricted to ASCII letters, digits, underscores;
     // prefix keeps them clear of Rust keywords.
     format!("babel_{name}")
+}
+// Flatten nested concat calls before emitting Rust. A chain of N concatenations
+// now builds one buffer instead of allocating N growing intermediate strings.
+fn concat_parts<'a>(expr: &'a Expr, parts: &mut Vec<&'a Expr>) {
+    if let Expr::Call(name, args) = expr {
+        if name == "concat" {
+            concat_parts(&args[0], parts);
+            concat_parts(&args[1], parts);
+            return;
+        }
+    }
+    parts.push(expr);
+}
+fn emit_concat(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty>, global: &HashMap<String, Ty>) -> String {
+    let mut parts = Vec::new();
+    concat_parts(expr, &mut parts);
+    let mut out = String::from("{ let mut babel_joined = String::new(); ");
+    for part in parts {
+        let value = match part {
+            // Concat is statically typed to String, so these are safe borrowed views.
+            Expr::Var(name) => format!("{}.as_str()", safe_id(name)),
+            Expr::Str(text) => format!("{text:?}"),
+            _ => format!("({}).as_str()", rust_expr(part, fn_names, local, global)),
+        };
+        out.push_str(&format!("babel_joined.push_str({value}); "));
+    }
+    out.push_str("babel_joined }");
+    out
 }
 fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty>, global: &HashMap<String, Ty>) -> String {
     match expr {
