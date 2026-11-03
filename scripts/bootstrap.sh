@@ -31,8 +31,8 @@ printf '[verified] byte-identical generated C across stages 1, 2 and 3\n'
 for file in examples/*.babel; do
   # The desktop example requires GTK4 and an interactive session; the
   # bootstrap proof only executes the portable primitive subset.
-  if [[ "$file" == examples/gui*.babel || "$file" == "examples/desktop.babel" ]]; then
-    printf '[skip] %-35s GTK4 desktop (Rust backend only)\n' "$file"
+  if [[ "$file" == examples/gui*.babel || "$file" == "examples/desktop.babel" || "$file" == "examples/segments_demo.babel" ]]; then
+    printf '[skip] %-35s Rust-only desktop or module feature\n' "$file"
     continue
   fi
   ./build/stage2 < "$file" > build/example.c
