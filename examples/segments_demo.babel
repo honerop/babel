@@ -1,0 +1,5 @@
+# Two segment imports compile with one Babel executable.
+use core.text
+use system.process
+print core_text_caps "babel segments"
+print asbool field system_process_run "true" ["ignored"] "ok"

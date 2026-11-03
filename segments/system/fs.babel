@@ -1,0 +1,5 @@
+# Recoverable native filesystem wrappers.
+system_fs_read path = tryread path
+system_fs_list path = fslist path
+system_fs_exists path = fsexists path
+system_fs_join base name = pathjoin base name

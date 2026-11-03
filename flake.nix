@@ -8,6 +8,7 @@
     in {
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell { packages = with pkgs; [ cargo rustc rustfmt clippy gcc clang python3 pkg-config gtk4 glib ]; };
+        browser = pkgs.mkShell { packages = with pkgs; [ cargo rustc python3 chromium ]; };
       });
     };
 }

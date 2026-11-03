@@ -1,0 +1,4 @@
+# Data/record conveniences.
+core_data_text value = boxstr value
+core_data_integer value = boxint value
+core_data_field record key = field record key

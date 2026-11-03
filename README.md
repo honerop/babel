@@ -394,3 +394,8 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [the co
 ## License
 
 [MIT](LICENSE). © 2026 Babel contributors.
+
+
+## Importable segments and browser
+
+Babel supports `use segment.module` on its native Rust backend. See [segments](docs/segments.md) and the [Babel Chromium browser](apps/browser/README.md).

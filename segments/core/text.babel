@@ -1,0 +1,4 @@
+# Pure text helpers. Public names carry the segment/module prefix.
+core_text_caps value = upper value
+core_text_lower value = lower value
+core_text_join left right = concat left right

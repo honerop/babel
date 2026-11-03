@@ -1,0 +1,3 @@
+system_terminal_args _ = argv _
+system_terminal_line _ = readline _
+system_terminal_write value = termwrite value

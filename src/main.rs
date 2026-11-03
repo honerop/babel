@@ -1,4 +1,4 @@
-use babel_compiler::{compile, compile_llvm, dump_air, format_source};
+use babel_compiler::{compile, compile_llvm, dump_air, modules, format_source};
 use std::env;
 mod benchmark;
 #[cfg(feature = "token-bench")]
@@ -107,7 +107,7 @@ fn run() -> Result<(), String> {
     if output.is_some() && matches!(action.as_str(), "check"|"fmt-check"|"check-json"|"run"|"run-checked"|"run-llvm") { return Err(format!("{action} doesn't accept -o")); }
     let source = fs::read_to_string(source_file).map_err(|e| format!("{}: {e}", source_file.display()))?;
     if action == "fmt" {
-        let formatted = format_source(&source).map_err(|e| e.to_string())?;
+        let formatted = modules::format_root(&source)?;
         if let Some(path) = output {
             fs::write(&path, formatted).map_err(|e| e.to_string())?;
             println!("wrote {}", path.display());
@@ -115,11 +115,12 @@ fn run() -> Result<(), String> {
         return Ok(());
     }
     if action == "fmt-check" {
-        let formatted = format_source(&source).map_err(|e| e.to_string())?;
+        let formatted = modules::format_root(&source)?;
         if source != formatted { return Err(format!("{} is not canonically formatted", source_file.display())); }
         println!("OK: {}", source_file.display());
         return Ok(());
     }
+    let source = modules::resolve_source(source_file, &source)?;
     if action == "check-json" {
         match compile(&source) {
             Ok(c) => {
