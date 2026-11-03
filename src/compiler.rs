@@ -1174,7 +1174,7 @@ fn babel_input(_: ()) -> String {
         }
     }
     out.push_str("}\n");
-    let uses_data = out.contains("babel_chat(") || out.contains("babel_browser(") || out.contains("BabelData") || out.contains("BabelCell") || out.contains("BabelTask") || out.contains("babel_data_") || out.contains("babel_json(") || out.contains("babel_tryjson(");
+    let uses_data = out.contains("babel_chat(") || out.contains("babel_browser(") || out.contains("BabelData") || out.contains("BabelCell") || out.contains("BabelTask") || out.contains("babel_data_") || out.contains("babel_json(") || out.contains("babel_tryjson(") || out.contains("babel_float_to_int(") || out.contains("babel_parse_float(");
     if uses_data { out.push_str(include_str!("../runtime/babel_data.rs")); }
     if out.contains("babel_argv(") || out.contains("babel_readline(") || out.contains("babel_termwrite(") {
         out.push_str(include_str!("../runtime/babel_terminal.rs"));
