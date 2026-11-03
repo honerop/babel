@@ -1116,7 +1116,7 @@ fn plica_preview_compiles_and_exits_cleanly_on_eof() {
 #[test]
 fn native_float_literals_arithmetic_and_inference() {
     assert_eq!(execute("print + 1.25 2.75\nprint * 1.5 4.0\nprint / 7.5 2.5\nprint neg 0.25\nprint abs -3.5\nprint pow 2.0 3.0\nprint < 1.5 2.5\nprint max 2.0 3.5\n"), "4\n6\n3\n-0.25\n3.5\n8\ntrue\n3.5\n");
-    assert_eq!(execute("square x = * x x\nprint square 1.5\nprint intfloat 7\nprint result_get floatint 3.75 0\n"), "2.25\n7\n3\n");
+    assert_eq!(execute("square x = * x + x 0.0\nprint square 1.5\nprint intfloat 7\nprint result_get floatint 3.75 0\n"), "2.25\n7\n3\n");
     assert!(compile("print + 1.5 1").is_err());
     assert!(compile("print + true 1.5").is_err());
 }
