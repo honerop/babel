@@ -1,0 +1,3 @@
+desktop_gui_open title layout = gui title layout
+desktop_gui_update title layout = guiupdate title layout
+desktop_gui_tick ms = guitick ms

@@ -1,0 +1,3 @@
+# Process arguments are typed Data lists; no shell interpolation.
+system_process_run binary arguments = processrun binary arguments
+system_process_foreground binary arguments = processinherit binary arguments

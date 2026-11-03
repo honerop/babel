@@ -1,0 +1,109 @@
+{
+  "format": 1,
+  "segments": {
+    "core": {
+      "version": "0.1.0",
+      "dependencies": [],
+      "modules": {
+        "text": [
+          "core_text_caps",
+          "core_text_lower",
+          "core_text_join"
+        ],
+        "data": [
+          "core_data_text",
+          "core_data_integer",
+          "core_data_field"
+        ]
+      }
+    },
+    "system": {
+      "version": "0.1.0",
+      "dependencies": [
+        "core"
+      ],
+      "modules": {
+        "fs": [
+          "system_fs_read",
+          "system_fs_list",
+          "system_fs_exists",
+          "system_fs_join"
+        ],
+        "process": [
+          "system_process_run",
+          "system_process_foreground"
+        ],
+        "terminal": [
+          "system_terminal_args",
+          "system_terminal_line",
+          "system_terminal_write"
+        ]
+      }
+    },
+    "network": {
+      "version": "0.1.0",
+      "dependencies": [
+        "core"
+      ],
+      "modules": {
+        "http": [
+          "network_http_get",
+          "network_http_post"
+        ]
+      }
+    },
+    "storage": {
+      "version": "0.1.0",
+      "dependencies": [
+        "core"
+      ],
+      "modules": {
+        "toml": [
+          "storage_toml_parse",
+          "storage_toml_write"
+        ]
+      }
+    },
+    "ai": {
+      "version": "0.1.0",
+      "dependencies": [
+        "core",
+        "network"
+      ],
+      "modules": {
+        "chat": [
+          "ai_chat_ask"
+        ]
+      }
+    },
+    "desktop": {
+      "version": "0.1.0",
+      "dependencies": [
+        "core",
+        "system"
+      ],
+      "modules": {
+        "gui": [
+          "desktop_gui_open",
+          "desktop_gui_update",
+          "desktop_gui_tick"
+        ],
+        "browser": [
+          "desktop_browser_open"
+        ]
+      }
+    },
+    "media": {
+      "version": "0.1.0",
+      "dependencies": [
+        "core",
+        "system"
+      ],
+      "modules": {
+        "audio": [
+          "media_audio_write"
+        ]
+      }
+    }
+  }
+}

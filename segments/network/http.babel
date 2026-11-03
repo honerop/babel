@@ -1,0 +1,2 @@
+network_http_get url = httpget url
+network_http_post url body = httppost url body
